@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Invoice {{ invoice.invoiceNumber }} - Nayapaisa{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Invoice #{{ invoice.invoiceNumber }}</h4>
+                    <div>
+                        <span class="badge bg-{{ 'secondary' if (invoice.status or 'draft') == 'draft' else 'warning' if invoice.status == 'sent' else 'success' if invoice.status == 'paid' else 'danger' }}">
+                            {{ (invoice.status or 'draft').title() }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card-body" id="invoice-content">
+                <!-- Invoice Header -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h5>From</h5>
+                        <p><strong>Nayapaisa</strong><br>
+                        Simple Invoicing Solution<br>
+                        India</p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <h5>To</h5>
+                        <p><strong>{{ invoice.clientName or 'N/A' }}</strong><br>
+                        {% if invoice.clientEmail %}{{ invoice.clientEmail }}<br>{% endif %}
+                        {% if invoice.clientAddress %}{{ invoice.clientAddress|replace('\n', '<br>')|safe }}{% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Invoice Details -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <p><strong>Invoice Date:</strong> 
+                            {% if invoice.createdAt %}
+                                {% if invoice.createdAt.strftime %}
+                                    {{ invoice.createdAt.strftime('%Y-%m-%d') }}
+                                {% else %}
+                                    {{ invoice.createdAt|string|truncate(10, True, '') }}
+                                {% endif %}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        {% if invoice.dueDate %}
+                        <p><strong>Due Date:</strong> {{ invoice.dueDate }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Items Table -->
+                <div class="table-responsive mb-4">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th class="text-end">Quantity</th>
+                                <th class="text-end">Rate</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if invoice.invoice_items %}
+                                {% for item in invoice.invoice_items %}
+                                <tr>
+                                    <td>{{ item.description if item.description else '' }}</td>
+                                    <td class="text-end">{{ item.quantity if item.quantity else 1 }}</td>
+                                    <td class="text-end">₹{{ "{:,.2f}".format(item.rate|float if item.rate else 0) }}</td>
+                                    <td class="text-end">₹{{ "{:,.2f}".format(item.amount|float if item.amount else (item.quantity|default(1)|float * item.rate|default(0)|float)) }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center">No items found</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Totals -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <!-- Empty for spacing -->
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Subtotal:</strong></td>
+                                <td class="text-end">₹{{ "{:,.2f}".format(invoice.subtotal|float or 0) }}</td>
+                            </tr>
+                            {% if invoice.tax and invoice.tax > 0 %}
+                            <tr>
+                                <td>Tax:</td>
+                                <td class="text-end">₹{{ "{:,.2f}".format(invoice.tax|float) }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <td><strong>Total:</strong></td>
+                                <td class="text-end"><strong>₹{{ "{:,.2f}".format(invoice.total|float or 0) }}</strong></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Status and Actions -->
+                <div class="row mt-4 pt-4 border-top">
+                    <div class="col-md-12">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6>Status: 
+                                    <span class="badge bg-{{ 'secondary' if (invoice.status or 'draft') == 'draft' else 'warning' if invoice.status == 'sent' else 'success' if invoice.status == 'paid' else 'danger' }}">
+                                        {{ (invoice.status or 'draft').title() }}
+                                    </span>
+                                </h6>
+                            </div>
+                            <div>
+                                <button class="btn btn-outline-primary" onclick="window.print()">
+                                    <i class="bi bi-printer"></i> Print
+                                </button>
+                                <button class="btn btn-primary" onclick="downloadPDF('{{ invoice.id }}')">
+                                    <i class="bi bi-download"></i> Download PDF
+                                </button>
+                                {% if invoice.status != 'paid' %}
+                                <button class="btn btn-success" onclick="markAsPaid('{{ invoice.id }}')">
+                                    <i class="bi bi-check-circle"></i> Mark as Paid
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function markAsPaid(invoiceId) {
+    if (confirm('Mark this invoice as paid?')) {
+        fetch(`/api/invoices/${invoiceId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({status: 'paid'})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error updating status: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Network error updating status');
+        });
+    }
+}
+
+function downloadPDF(invoiceId) {
+    alert('PDF download feature will be implemented tomorrow. For now, you can use the Print button and choose "Save as PDF"');
+}
+
+// Add print-friendly CSS
+const printStyle = document.createElement('style');
+printStyle.innerHTML = `
+@media print {
+    nav, .btn:not(.d-none) {
+        display: none !important;
+    }
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #000 !important;
+    }
+    body {
+        padding: 20px !important;
+    }
+    .badge {
+        color: #000 !important;
+        background: none !important;
+        border: 1px solid #000 !important;
+    }
+}`;
+document.head.appendChild(printStyle);
+</script>
+{% endblock %}
