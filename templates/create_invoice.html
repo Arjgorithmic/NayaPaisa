@@ -22,6 +22,22 @@
                         <!-- Client Information -->
                         <div class="col-md-6">
                             <h5 class="mb-3"><i class="bi bi-person me-2"></i>Client Information</h5>
+                            
+                            <!-- Client Selection -->
+                            <div class="mb-3">
+                                <label class="form-label">Select Client</label>
+                                <div class="input-group">
+                                    <select class="form-select" id="clientSelect">
+                                        <option value="">-- Select Existing Client --</option>
+                                    </select>
+                                    <button class="btn btn-outline-primary" type="button" onclick="manageClients()" title="Manage Clients">
+                                        <i class="bi bi-gear"></i>
+                                    </button>
+                                </div>
+                                <small class="text-muted">Or enter client details manually below</small>
+                            </div>
+                            
+                            <!-- Client Details Form -->
                             <div class="mb-3">
                                 <label class="form-label">Client Name *</label>
                                 <input type="text" class="form-control" id="clientName" required>
@@ -29,6 +45,10 @@
                             <div class="mb-3">
                                 <label class="form-label">Client Email *</label>
                                 <input type="email" class="form-control" id="clientEmail" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Client Phone</label>
+                                <input type="tel" class="form-control" id="clientPhone">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Client Address</label>
@@ -137,6 +157,85 @@
 
 {% block scripts %}
 <script>
+// Load clients when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadClientsForInvoice();
+    loadDefaultSettings();
+    
+    // Set default dates
+    const today = new Date();
+    const todayFormatted = today.toISOString().split('T')[0];
+    document.getElementById('invoiceDate').value = todayFormatted;
+    
+    // Trigger initial calculation
+    calculateTotals();
+});
+
+function loadClientsForInvoice() {
+    fetch('/api/clients')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('clientSelect');
+            select.innerHTML = '<option value="">-- Select Existing Client --</option>';
+            
+            data.clients.forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.id;
+                option.textContent = `${client.name} (${client.email})`;
+                option.dataset.client = JSON.stringify(client);
+                select.appendChild(option);
+            });
+        })
+        .catch(error => console.error('Error loading clients:', error));
+}
+
+// When client is selected, populate fields
+document.getElementById('clientSelect').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    if (selectedOption.value) {
+        const client = JSON.parse(selectedOption.dataset.client);
+        document.getElementById('clientName').value = client.name || '';
+        document.getElementById('clientEmail').value = client.email || '';
+        document.getElementById('clientPhone').value = client.phone || '';
+        document.getElementById('clientAddress').value = client.address || '';
+    } else {
+        // Clear fields if "Select Client" is chosen
+        document.getElementById('clientName').value = '';
+        document.getElementById('clientEmail').value = '';
+        document.getElementById('clientPhone').value = '';
+        document.getElementById('clientAddress').value = '';
+    }
+});
+
+function manageClients() {
+    window.open('/clients', '_blank');
+}
+
+function loadDefaultSettings() {
+    fetch('/api/settings/profile')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.profile) {
+                const profile = data.profile;
+                
+                // Set default tax rate
+                if (profile.defaultTaxRate) {
+                    document.getElementById('taxRate').value = profile.defaultTaxRate;
+                    calculateTotals();
+                }
+                
+                // Set default due date
+                if (profile.defaultDueDays) {
+                    const today = new Date();
+                    const dueDate = new Date();
+                    dueDate.setDate(today.getDate() + parseInt(profile.defaultDueDays));
+                    document.getElementById('dueDate').value = dueDate.toISOString().split('T')[0];
+                }
+            }
+        })
+        .catch(error => console.error('Error loading default settings:', error));
+}
+
 // Add item row
 document.getElementById('addItem').addEventListener('click', function() {
     const itemRow = `
@@ -224,6 +323,17 @@ document.getElementById('taxRate').addEventListener('input', calculateTotals);
 document.getElementById('invoiceForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
+    // Validate required fields
+    if (!document.getElementById('clientName').value || !document.getElementById('clientEmail').value) {
+        alert('Please fill in client name and email');
+        return;
+    }
+    
+    if (!document.getElementById('dueDate').value) {
+        alert('Please select a due date');
+        return;
+    }
+    
     // Collect form data
     const items = [];
     document.querySelectorAll('.item-row').forEach(row => {
@@ -237,9 +347,15 @@ document.getElementById('invoiceForm').addEventListener('submit', function(e) {
         }
     });
     
+    if (items.length === 0) {
+        alert('Please add at least one item');
+        return;
+    }
+    
     const invoiceData = {
         clientName: document.getElementById('clientName').value,
         clientEmail: document.getElementById('clientEmail').value,
+        clientPhone: document.getElementById('clientPhone').value,
         clientAddress: document.getElementById('clientAddress').value,
         dueDate: document.getElementById('dueDate').value,
         invoiceDate: document.getElementById('invoiceDate').value,
@@ -278,22 +394,6 @@ document.getElementById('invoiceForm').addEventListener('submit', function(e) {
         console.error('Error:', error);
         alert('Network error creating invoice');
     });
-});
-
-// Set default dates
-document.addEventListener('DOMContentLoaded', function() {
-    const today = new Date();
-    const dueDate = new Date();
-    dueDate.setDate(today.getDate() + 30);
-    
-    const todayFormatted = today.toISOString().split('T')[0];
-    const dueDateFormatted = dueDate.toISOString().split('T')[0];
-    
-    document.getElementById('invoiceDate').value = todayFormatted;
-    document.getElementById('dueDate').value = dueDateFormatted;
-    
-    // Trigger initial calculation
-    calculateTotals();
 });
 </script>
 {% endblock %}

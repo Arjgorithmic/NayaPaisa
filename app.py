@@ -174,6 +174,119 @@ def send_invoice_email(invoice_data):
         print(f"Error sending email: {e}")
         return False
 
+
+def save_client_to_firebase(client_data):
+    """Save client to Firestore"""
+    try:
+        if db is None:
+            return None
+            
+        client_ref = db.collection('clients').document()
+        client_data['createdAt'] = datetime.now()
+        client_ref.set(client_data)
+        return client_ref.id
+    except Exception as e:
+        print(f"Error saving client: {e}")
+        return None
+
+def get_clients_from_firebase():
+    """Get all clients from Firestore"""
+    try:
+        if db is None:
+            return []
+        
+        clients_ref = db.collection('clients').order_by('createdAt', direction='DESCENDING')
+        docs = clients_ref.stream()
+        clients = []
+        for doc in docs:
+            client = doc.to_dict()
+            client['id'] = doc.id
+            clients.append(client)
+        return clients
+    except Exception as e:
+        print(f"Error getting clients: {e}")
+        return []
+
+def get_client_from_firebase(client_id):
+    """Get single client from Firestore"""
+    try:
+        if db is None:
+            return None
+            
+        doc = db.collection('clients').document(client_id).get()
+        if doc.exists:
+            client = doc.to_dict()
+            client['id'] = doc.id
+            return client
+        return None
+    except Exception as e:
+        print(f"Error getting client: {e}")
+        return None
+
+def update_client_in_firebase(client_id, client_data):
+    """Update client in Firestore"""
+    try:
+        if db is None:
+            return False
+            
+        # Remove createdAt if present to avoid overwriting
+        if 'createdAt' in client_data:
+            del client_data['createdAt']
+            
+        client_data['updatedAt'] = datetime.now()
+        db.collection('clients').document(client_id).update(client_data)
+        return True
+    except Exception as e:
+        print(f"Error updating client: {e}")
+        return False
+
+def delete_client_from_firebase(client_id):
+    """Delete client from Firestore"""
+    try:
+        if db is None:
+            return False
+            
+        db.collection('clients').document(client_id).delete()
+        return True
+    except Exception as e:
+        print(f"Error deleting client: {e}")
+        return False
+
+
+def save_user_profile(user_id, profile_data):
+    """Save user profile to Firestore"""
+    try:
+        if db is None:
+            return False
+            
+        profile_data['updatedAt'] = datetime.now()
+        db.collection('user_profiles').document(user_id).set(profile_data)
+        return True
+    except Exception as e:
+        print(f"Error saving user profile: {e}")
+        return False
+
+def get_user_profile(user_id):
+    """Get user profile from Firestore"""
+    try:
+        if db is None:
+            return None
+            
+        doc = db.collection('user_profiles').document(user_id).get()
+        if doc.exists:
+            return doc.to_dict()
+        return {}
+    except Exception as e:
+        print(f"Error getting user profile: {e}")
+        return {}
+
+def get_current_user_id():
+    """Get current user ID from session"""
+    # For now, use username as user ID
+    # In production, you'd use a proper user ID system
+    return session.get('user', 'default_user')
+
+
 # Routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -387,5 +500,122 @@ def register():
     
     return render_template('login.html')
 
+@app.route('/clients')
+@login_required
+def clients():
+    """Client management dashboard"""
+    clients = get_clients_from_firebase()
+    return render_template('clients.html', clients=clients)
+
+@app.route('/api/clients', methods=['GET'])
+@login_required
+def get_clients_api():
+    """Get all clients as JSON"""
+    clients = get_clients_from_firebase()
+    return jsonify({'clients': clients})
+
+@app.route('/api/clients', methods=['POST'])
+@login_required
+def create_client_api():
+    """Create new client"""
+    data = request.get_json()
+    
+    client_data = {
+        'name': data.get('name', ''),
+        'email': data.get('email', ''),
+        'phone': data.get('phone', ''),
+        'address': data.get('address', ''),
+        'company': data.get('company', ''),
+        **data
+    }
+    
+    client_id = save_client_to_firebase(client_data)
+    
+    if client_id:
+        client_data['id'] = client_id
+        return jsonify({'success': True, 'client': client_data}), 201
+    else:
+        return jsonify({'success': False, 'error': 'Failed to save client'}), 500
+
+@app.route('/api/clients/<client_id>', methods=['GET'])
+@login_required
+def get_client_api(client_id):
+    """Get single client"""
+    client = get_client_from_firebase(client_id)
+    if client:
+        return jsonify({'success': True, 'client': client})
+    else:
+        return jsonify({'success': False, 'error': 'Client not found'}), 404
+
+@app.route('/api/clients/<client_id>', methods=['PUT'])
+@login_required
+def update_client_api(client_id):
+    """Update client"""
+    data = request.get_json()
+    
+    if update_client_in_firebase(client_id, data):
+        client = get_client_from_firebase(client_id)
+        return jsonify({'success': True, 'client': client})
+    else:
+        return jsonify({'success': False, 'error': 'Failed to update client'}), 500
+
+@app.route('/api/clients/<client_id>', methods=['DELETE'])
+@login_required
+def delete_client_api(client_id):
+    """Delete client"""
+    if delete_client_from_firebase(client_id):
+        return jsonify({'success': True, 'message': 'Client deleted successfully'})
+    else:
+        return jsonify({'success': False, 'error': 'Failed to delete client'}), 500
+
+@app.route('/api/clients/search')
+@login_required
+def search_clients_api():
+    """Search clients by name or email"""
+    query = request.args.get('q', '').lower()
+    
+    if not query:
+        return jsonify({'clients': []})
+    
+    all_clients = get_clients_from_firebase()
+    filtered_clients = [
+        client for client in all_clients
+        if query in client.get('name', '').lower() or 
+           query in client.get('email', '').lower()
+    ]
+    
+    return jsonify({'clients': filtered_clients})
+
+
+
+@app.route('/settings')
+@login_required
+def settings():
+    """User settings/profile page"""
+    user_id = get_current_user_id()
+    profile = get_user_profile(user_id)
+    return render_template('settings.html', profile=profile)
+
+@app.route('/api/settings/profile', methods=['GET'])
+@login_required
+def get_profile_api():
+    """Get user profile"""
+    user_id = get_current_user_id()
+    profile = get_user_profile(user_id)
+    return jsonify({'success': True, 'profile': profile})
+
+@app.route('/api/settings/profile', methods=['POST'])
+@login_required
+def save_profile_api():
+    """Save user profile"""
+    user_id = get_current_user_id()
+    data = request.get_json()
+    
+    if save_user_profile(user_id, data):
+        return jsonify({'success': True, 'message': 'Profile saved successfully!'})
+    else:
+        return jsonify({'success': False, 'error': 'Failed to save profile'}), 500
+    
+    
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

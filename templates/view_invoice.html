@@ -44,10 +44,14 @@
                     <div class="col-md-6">
                         <div class="mb-4">
                             <h5 class="text-muted">From</h5>
-                            <h4 class="fw-bold">Nayapaisa</h4>
-                            <p class="mb-1">Simple Invoicing Solution</p>
-                            <p class="mb-1">India</p>
-                            <p class="mb-0">nayapaisa@example.com</p>
+                            <div id="businessInfo">
+                                <h4 class="fw-bold" id="businessName">Nayapaisa</h4>
+                                <div id="businessDetails">
+                                    <p class="mb-1">Simple Invoicing Solution</p>
+                                    <p class="mb-1">India</p>
+                                    <p class="mb-0">nayapaisa@example.com</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-6 text-md-end">
@@ -56,6 +60,9 @@
                             <h4 class="fw-bold">{{ invoice.clientName or 'N/A' }}</h4>
                             {% if invoice.clientEmail %}
                             <p class="mb-1">{{ invoice.clientEmail }}</p>
+                            {% endif %}
+                            {% if invoice.clientPhone %}
+                            <p class="mb-1">{{ invoice.clientPhone }}</p>
                             {% endif %}
                             {% if invoice.clientAddress %}
                             <p class="mb-0">{{ invoice.clientAddress|replace('\n', '<br>')|safe }}</p>
@@ -156,19 +163,11 @@
                 </div>
 
                 <!-- Notes -->
-                <div class="row mt-5 pt-4 border-top">
+                <div class="row mt-5 pt-4 border-top" id="notesSection">
                     <div class="col-md-6">
                         <h6>Notes</h6>
-                        <p class="text-muted small">
+                        <p class="text-muted small" id="invoiceNotes">
                             Thank you for your business. Please make payment by the due date.
-                        </p>
-                    </div>
-                    <div class="col-md-6 text-md-end">
-                        <h6>Payment Information</h6>
-                        <p class="text-muted small">
-                            Bank: Example Bank<br>
-                            Account: 123456789<br>
-                            IFSC: EXAMPLE001
                         </p>
                     </div>
                 </div>
@@ -180,6 +179,97 @@
 
 {% block scripts %}
 <script>
+// Load business information when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadBusinessInfo();
+});
+
+function loadBusinessInfo() {
+    fetch('/api/settings/profile')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.profile) {
+                const profile = data.profile;
+                const businessInfo = document.getElementById('businessInfo');
+                
+                if (profile.businessName) {
+                    document.getElementById('businessName').textContent = profile.businessName;
+                }
+                
+                let businessDetails = '';
+                if (profile.businessAddress) {
+                    businessDetails += `<p class="mb-1">${profile.businessAddress.replace(/\n/g, '<br>')}</p>`;
+                }
+                if (profile.businessPhone) {
+                    businessDetails += `<p class="mb-1">Phone: ${profile.businessPhone}</p>`;
+                }
+                if (profile.businessEmail) {
+                    businessDetails += `<p class="mb-0">Email: ${profile.businessEmail}</p>`;
+                }
+                if (profile.gstNumber) {
+                    businessDetails += `<p class="mb-0">GST: ${profile.gstNumber}</p>`;
+                }
+                
+                if (businessDetails) {
+                    document.getElementById('businessDetails').innerHTML = businessDetails;
+                }
+                
+                // Update payment information
+                updatePaymentInfo(profile);
+                
+                // Update invoice notes
+                if (profile.defaultInvoiceNotes) {
+                    document.getElementById('invoiceNotes').innerHTML = profile.defaultInvoiceNotes;
+                }
+            }
+        })
+        .catch(error => console.error('Error loading business info:', error));
+}
+
+function updatePaymentInfo(profile) {
+    // Add payment information section
+    const paymentInfo = document.createElement('div');
+    paymentInfo.className = 'row mt-4 pt-4 border-top';
+    paymentInfo.innerHTML = `
+        <div class="col-md-12">
+            <h6>Payment Information</h6>
+        </div>
+    `;
+    
+    let paymentDetails = '';
+    
+    if (profile.bankName || profile.accountNumber || profile.ifscCode) {
+        paymentDetails += '<div class="col-md-6 mb-3"><h6>Bank Transfer</h6>';
+        if (profile.bankName) paymentDetails += `<p class="mb-1"><strong>Bank:</strong> ${profile.bankName}</p>`;
+        if (profile.accountNumber) paymentDetails += `<p class="mb-1"><strong>Account:</strong> ${profile.accountNumber}</p>`;
+        if (profile.ifscCode) paymentDetails += `<p class="mb-1"><strong>IFSC:</strong> ${profile.ifscCode}</p>`;
+        paymentDetails += '</div>';
+    }
+    
+    if (profile.upiId) {
+        paymentDetails += '<div class="col-md-6 mb-3"><h6>UPI Payment</h6>';
+        paymentDetails += `<p class="mb-1"><strong>UPI ID:</strong> ${profile.upiId}</p>`;
+        paymentDetails += '</div>';
+    }
+    
+    if (profile.paypalEmail) {
+        paymentDetails += '<div class="col-md-6 mb-3"><h6>PayPal</h6>';
+        paymentDetails += `<p class="mb-1"><strong>Email:</strong> ${profile.paypalEmail}</p>`;
+        paymentDetails += '</div>';
+    }
+    
+    if (profile.paymentNotes) {
+        paymentDetails += '<div class="col-md-12 mb-3"><h6>Additional Payment Notes</h6>';
+        paymentDetails += `<p class="mb-1">${profile.paymentNotes}</p>`;
+        paymentDetails += '</div>';
+    }
+    
+    if (paymentDetails) {
+        paymentInfo.innerHTML += paymentDetails;
+        document.querySelector('.card-body').appendChild(paymentInfo);
+    }
+}
+
 function markAsPaid(invoiceId) {
     if (confirm('Mark this invoice as paid?')) {
         fetch(`/api/invoices/${invoiceId}/status`, {

@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Nayapaisa{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h4 class="mb-0">Account Settings</h4>
+            </div>
+            <div class="card-body">
+                <form id="profileForm">
+                    <div class="row">
+                        <!-- Business Information -->
+                        <div class="col-md-6">
+                            <h5 class="mb-3"><i class="bi bi-building me-2"></i>Business Information</h5>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Business Name</label>
+                                <input type="text" class="form-control" id="businessName" placeholder="Your business name">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Business Email</label>
+                                <input type="email" class="form-control" id="businessEmail" placeholder="business@example.com">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Business Phone</label>
+                                <input type="tel" class="form-control" id="businessPhone" placeholder="+91 XXXXXXXXXX">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Business Address</label>
+                                <textarea class="form-control" id="businessAddress" rows="4" placeholder="Full business address"></textarea>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">GST Number (if applicable)</label>
+                                <input type="text" class="form-control" id="gstNumber" placeholder="GSTIN">
+                            </div>
+                        </div>
+                        
+                        <!-- Payment Information -->
+                        <div class="col-md-6">
+                            <h5 class="mb-3"><i class="bi bi-credit-card me-2"></i>Payment Information</h5>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Bank Name</label>
+                                <input type="text" class="form-control" id="bankName" placeholder="Bank of Example">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Account Number</label>
+                                <input type="text" class="form-control" id="accountNumber" placeholder="XXXXXXXXXXXX">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">IFSC Code</label>
+                                <input type="text" class="form-control" id="ifscCode" placeholder="EXAMPLE0001234">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">UPI ID</label>
+                                <input type="text" class="form-control" id="upiId" placeholder="username@upi">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">PayPal Email (Optional)</label>
+                                <input type="email" class="form-control" id="paypalEmail" placeholder="paypal@example.com">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Additional Payment Notes</label>
+                                <textarea class="form-control" id="paymentNotes" rows="3" placeholder="Any additional payment instructions"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Additional Settings -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h5 class="mb-3"><i class="bi bi-gear me-2"></i>Preferences</h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Default Tax Rate (%)</label>
+                                        <input type="number" class="form-control" id="defaultTaxRate" placeholder="0" min="0" max="100" step="0.1">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Default Due Days</label>
+                                        <input type="number" class="form-control" id="defaultDueDays" placeholder="30" min="1" max="365">
+                                        <small class="text-muted">Number of days for invoice due date</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Invoice Notes (Default)</label>
+                                <textarea class="form-control" id="defaultInvoiceNotes" rows="3" placeholder="Default notes that appear on all invoices"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> Reset
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save me-1"></i> Save Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load profile when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadUserProfile();
+});
+
+function loadUserProfile() {
+    fetch('/api/settings/profile')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.profile) {
+                const profile = data.profile;
+                
+                // Business Information
+                document.getElementById('businessName').value = profile.businessName || '';
+                document.getElementById('businessEmail').value = profile.businessEmail || '';
+                document.getElementById('businessPhone').value = profile.businessPhone || '';
+                document.getElementById('businessAddress').value = profile.businessAddress || '';
+                document.getElementById('gstNumber').value = profile.gstNumber || '';
+                
+                // Payment Information
+                document.getElementById('bankName').value = profile.bankName || '';
+                document.getElementById('accountNumber').value = profile.accountNumber || '';
+                document.getElementById('ifscCode').value = profile.ifscCode || '';
+                document.getElementById('upiId').value = profile.upiId || '';
+                document.getElementById('paypalEmail').value = profile.paypalEmail || '';
+                document.getElementById('paymentNotes').value = profile.paymentNotes || '';
+                
+                // Preferences
+                document.getElementById('defaultTaxRate').value = profile.defaultTaxRate || '';
+                document.getElementById('defaultDueDays').value = profile.defaultDueDays || '30';
+                document.getElementById('defaultInvoiceNotes').value = profile.defaultInvoiceNotes || '';
+            }
+        })
+        .catch(error => console.error('Error loading profile:', error));
+}
+
+function resetForm() {
+    if (confirm('Are you sure you want to reset all fields?')) {
+        document.getElementById('profileForm').reset();
+    }
+}
+
+// Save profile
+document.getElementById('profileForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const profileData = {
+        // Business Information
+        businessName: document.getElementById('businessName').value,
+        businessEmail: document.getElementById('businessEmail').value,
+        businessPhone: document.getElementById('businessPhone').value,
+        businessAddress: document.getElementById('businessAddress').value,
+        gstNumber: document.getElementById('gstNumber').value,
+        
+        // Payment Information
+        bankName: document.getElementById('bankName').value,
+        accountNumber: document.getElementById('accountNumber').value,
+        ifscCode: document.getElementById('ifscCode').value,
+        upiId: document.getElementById('upiId').value,
+        paypalEmail: document.getElementById('paypalEmail').value,
+        paymentNotes: document.getElementById('paymentNotes').value,
+        
+        // Preferences
+        defaultTaxRate: document.getElementById('defaultTaxRate').value,
+        defaultDueDays: document.getElementById('defaultDueDays').value,
+        defaultInvoiceNotes: document.getElementById('defaultInvoiceNotes').value
+    };
+    
+    // Remove empty fields
+    Object.keys(profileData).forEach(key => {
+        if (profileData[key] === '') {
+            delete profileData[key];
+        }
+    });
+    
+    fetch('/api/settings/profile', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(profileData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Settings saved successfully!');
+        } else {
+            alert('Error saving settings: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Network error saving settings');
+    });
+});
+</script>
+{% endblock %}
