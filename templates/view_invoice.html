@@ -4,68 +4,114 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-10 mx-auto">
+    <div class="col-12">
         <div class="card">
-            <div class="card-header bg-white">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">Invoice #{{ invoice.invoiceNumber }}</h4>
+            <div class="card-header invoice-header">
+                <div class="d-flex justify-content-between align-items-center w-100">
                     <div>
-                        <span class="badge bg-{{ 'secondary' if (invoice.status or 'draft') == 'draft' else 'warning' if invoice.status == 'sent' else 'success' if invoice.status == 'paid' else 'danger' }}">
+                        <h4 class="mb-0 text-white">Invoice #{{ invoice.invoiceNumber }}</h4>
+                        <span class="badge bg-light text-dark mt-1">
                             {{ (invoice.status or 'draft').title() }}
                         </span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-light" onclick="window.print()">
+                            <i class="bi bi-printer me-1"></i> Print
+                        </button>
+                        <a href="/api/invoices/{{ invoice.id }}/pdf" class="btn btn-light" target="_blank">
+                            <i class="bi bi-download me-1"></i> Download PDF
+                        </a>
+                        {% if invoice.status == 'draft' %}
+                        <button class="btn btn-success" onclick="sendInvoice('{{ invoice.id }}')">
+                            <i class="bi bi-send me-1"></i> Send Invoice
+                        </button>
+                        {% endif %}
+                        {% if invoice.status != 'paid' %}
+                        <button class="btn btn-success" onclick="markAsPaid('{{ invoice.id }}')">
+                            <i class="bi bi-check-circle me-1"></i> Mark as Paid
+                        </button>
+                        {% endif %}
+                        <a href="/" class="btn btn-outline-light">
+                            <i class="bi bi-arrow-left me-1"></i> Back
+                        </a>
                     </div>
                 </div>
             </div>
             
             <div class="card-body" id="invoice-content">
                 <!-- Invoice Header -->
-                <div class="row mb-4">
+                <div class="row mb-5">
                     <div class="col-md-6">
-                        <h5>From</h5>
-                        <p><strong>Nayapaisa</strong><br>
-                        Simple Invoicing Solution<br>
-                        India</p>
+                        <div class="mb-4">
+                            <h5 class="text-muted">From</h5>
+                            <h4 class="fw-bold">Nayapaisa</h4>
+                            <p class="mb-1">Simple Invoicing Solution</p>
+                            <p class="mb-1">India</p>
+                            <p class="mb-0">nayapaisa@example.com</p>
+                        </div>
                     </div>
                     <div class="col-md-6 text-md-end">
-                        <h5>To</h5>
-                        <p><strong>{{ invoice.clientName or 'N/A' }}</strong><br>
-                        {% if invoice.clientEmail %}{{ invoice.clientEmail }}<br>{% endif %}
-                        {% if invoice.clientAddress %}{{ invoice.clientAddress|replace('\n', '<br>')|safe }}{% endif %}
-                        </p>
+                        <div class="mb-4">
+                            <h5 class="text-muted">Bill To</h5>
+                            <h4 class="fw-bold">{{ invoice.clientName or 'N/A' }}</h4>
+                            {% if invoice.clientEmail %}
+                            <p class="mb-1">{{ invoice.clientEmail }}</p>
+                            {% endif %}
+                            {% if invoice.clientAddress %}
+                            <p class="mb-0">{{ invoice.clientAddress|replace('\n', '<br>')|safe }}</p>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
 
                 <!-- Invoice Details -->
-                <div class="row mb-4">
+                <div class="row mb-5">
                     <div class="col-md-6">
-                        <p><strong>Invoice Date:</strong> 
-                            {% if invoice.createdAt %}
-                                {% if invoice.createdAt.strftime %}
-                                    {{ invoice.createdAt.strftime('%Y-%m-%d') }}
-                                {% else %}
-                                    {{ invoice.createdAt|string|truncate(10, True, '') }}
-                                {% endif %}
-                            {% else %}
-                                N/A
-                            {% endif %}
-                        </p>
+                        <div class="row">
+                            <div class="col-6">
+                                <p class="text-muted mb-1">Invoice Date</p>
+                                <p class="fw-bold">
+                                    {% if invoice.createdAt %}
+                                        {% if invoice.createdAt.strftime %}
+                                            {{ invoice.createdAt.strftime('%d %B %Y') }}
+                                        {% else %}
+                                            {{ invoice.createdAt|string|truncate(10, True, '') }}
+                                        {% endif %}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="col-6">
+                                <p class="text-muted mb-1">Invoice Number</p>
+                                <p class="fw-bold">{{ invoice.invoiceNumber }}</p>
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-6 text-md-end">
-                        {% if invoice.dueDate %}
-                        <p><strong>Due Date:</strong> {{ invoice.dueDate }}</p>
-                        {% endif %}
+                        <div class="row">
+                            <div class="col-6 ms-auto">
+                                <p class="text-muted mb-1">Due Date</p>
+                                <p class="fw-bold {% if is_overdue(invoice) and invoice.status != 'paid' %}text-danger{% endif %}">
+                                    {{ invoice.dueDate or 'N/A' }}
+                                </p>
+                                {% if is_overdue(invoice) and invoice.status != 'paid' %}
+                                <span class="badge bg-danger">Overdue</span>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Items Table -->
                 <div class="table-responsive mb-4">
-                    <table class="table">
-                        <thead>
+                    <table class="table table-bordered">
+                        <thead class="table-light">
                             <tr>
                                 <th>Description</th>
-                                <th class="text-end">Quantity</th>
-                                <th class="text-end">Rate</th>
-                                <th class="text-end">Amount</th>
+                                <th class="text-end" style="width: 100px;">Quantity</th>
+                                <th class="text-end" style="width: 120px;">Rate</th>
+                                <th class="text-end" style="width: 120px;">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -88,12 +134,9 @@
                 </div>
 
                 <!-- Totals -->
-                <div class="row">
-                    <div class="col-md-6">
-                        <!-- Empty for spacing -->
-                    </div>
-                    <div class="col-md-6">
-                        <table class="table table-sm">
+                <div class="row justify-content-end">
+                    <div class="col-md-4">
+                        <table class="table table-bordered">
                             <tr>
                                 <td><strong>Subtotal:</strong></td>
                                 <td class="text-end">₹{{ "{:,.2f}".format(invoice.subtotal|float or 0) }}</td>
@@ -104,7 +147,7 @@
                                 <td class="text-end">₹{{ "{:,.2f}".format(invoice.tax|float) }}</td>
                             </tr>
                             {% endif %}
-                            <tr>
+                            <tr class="table-light">
                                 <td><strong>Total:</strong></td>
                                 <td class="text-end"><strong>₹{{ "{:,.2f}".format(invoice.total|float or 0) }}</strong></td>
                             </tr>
@@ -112,31 +155,21 @@
                     </div>
                 </div>
 
-                <!-- Status and Actions -->
-                <div class="row mt-4 pt-4 border-top">
-                    <div class="col-md-12">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6>Status: 
-                                    <span class="badge bg-{{ 'secondary' if (invoice.status or 'draft') == 'draft' else 'warning' if invoice.status == 'sent' else 'success' if invoice.status == 'paid' else 'danger' }}">
-                                        {{ (invoice.status or 'draft').title() }}
-                                    </span>
-                                </h6>
-                            </div>
-                            <div>
-                                <button class="btn btn-outline-primary" onclick="window.print()">
-                                    <i class="bi bi-printer"></i> Print
-                                </button>
-                                <button class="btn btn-primary" onclick="downloadPDF('{{ invoice.id }}')">
-                                    <i class="bi bi-download"></i> Download PDF
-                                </button>
-                                {% if invoice.status != 'paid' %}
-                                <button class="btn btn-success" onclick="markAsPaid('{{ invoice.id }}')">
-                                    <i class="bi bi-check-circle"></i> Mark as Paid
-                                </button>
-                                {% endif %}
-                            </div>
-                        </div>
+                <!-- Notes -->
+                <div class="row mt-5 pt-4 border-top">
+                    <div class="col-md-6">
+                        <h6>Notes</h6>
+                        <p class="text-muted small">
+                            Thank you for your business. Please make payment by the due date.
+                        </p>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <h6>Payment Information</h6>
+                        <p class="text-muted small">
+                            Bank: Example Bank<br>
+                            Account: 123456789<br>
+                            IFSC: EXAMPLE001
+                        </p>
                     </div>
                 </div>
             </div>
@@ -159,6 +192,7 @@ function markAsPaid(invoiceId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                alert('Invoice marked as paid!');
                 location.reload();
             } else {
                 alert('Error updating status: ' + (data.error || 'Unknown error'));
@@ -171,15 +205,45 @@ function markAsPaid(invoiceId) {
     }
 }
 
-function downloadPDF(invoiceId) {
-    alert('PDF download feature will be implemented tomorrow. For now, you can use the Print button and choose "Save as PDF"');
+function sendInvoice(invoiceId) {
+    if (confirm('Send this invoice to the client?')) {
+        fetch(`/api/invoices/${invoiceId}/send-email`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Invoice sent successfully!');
+                location.reload();
+            } else {
+                alert('Error sending invoice: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Network error sending invoice');
+        });
+    }
+}
+
+// Add helper function for overdue check
+function isOverdue(invoice) {
+    if (invoice.status === 'paid' || invoice.status === 'draft') return false;
+    if (!invoice.dueDate) return false;
+    
+    const dueDate = new Date(invoice.dueDate);
+    const today = new Date();
+    return today > dueDate;
 }
 
 // Add print-friendly CSS
 const printStyle = document.createElement('style');
 printStyle.innerHTML = `
 @media print {
-    nav, .btn:not(.d-none) {
+    .navbar, .sidebar, .footer, .btn, .card-header {
         display: none !important;
     }
     .card {
@@ -188,6 +252,11 @@ printStyle.innerHTML = `
     }
     body {
         padding: 20px !important;
+        background: white !important;
+    }
+    .card-header {
+        background: #f8f9fa !important;
+        color: #000 !important;
     }
     .badge {
         color: #000 !important;
